@@ -130,9 +130,7 @@ func (c *Conn) handleFrame(frame *Frame) error {
 		switch frame.Type {
 		case FrameData:
 			// - 如果是来自对端的新 sid，创建流
-			sameSide := c.server == isServerSid(frame.Sid)
-			if sameSide {
-				// 如果是同端流，说明是对端发送了堆积的 data，回复 rst
+			if c.newStream == nil || c.server == isServerSid(frame.Sid) {
 				_ = c.writeFrame(&Frame{
 					Type:  FrameEnd,
 					Sid:   frame.Sid,
@@ -225,6 +223,9 @@ func (c *Conn) NewStream() (*Stream, error) {
 
 	for range allocSidRetry {
 		sid := atomic.AddUint32(&c.sidSeed, 2)
+		if sid == 0 {
+			sid = atomic.AddUint32(&c.sidSeed, 2)
+		}
 		if c.streams[sid] != nil {
 			continue
 		}

@@ -366,12 +366,11 @@ func (b *inbuf) consume(p []byte) int {
 	n := 0
 	for n < len(p) && len(b.bufs) > 0 {
 		buf := b.bufs[0]
-		m, err := buf.Read(p[n:])
-		if err == io.EOF {
-			b.bufs = b.bufs[1:]
-			continue
-		}
+		m, _ := buf.Read(p[n:])
 		n += m
+		if buf.Len() == 0 {
+			b.bufs = b.bufs[1:]
+		}
 	}
 	b.buffered -= n
 	return n
