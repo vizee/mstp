@@ -163,7 +163,6 @@ func newStream(c *Conn, sid uint32) *Stream {
 		},
 		inbuf: &inbuf{
 			buffered: 0,
-			limit:    defaultWindowSize,
 		},
 	}
 	go s.updateWindow()
@@ -247,6 +246,9 @@ func (f *outflow) increase(n int) {
 
 	wakeup := f.ready == 0
 	f.ready += n
+	if f.ready > defaultWindowSize {
+		f.ready = defaultWindowSize
+	}
 	if wakeup {
 		pluse(f.wake)
 	}
@@ -339,7 +341,6 @@ const (
 type inbuf struct {
 	lock     sync.Mutex
 	buffered int
-	limit    int
 	bufs     []*bytes.Buffer
 }
 
@@ -347,7 +348,7 @@ func (b *inbuf) put(p []byte) bool {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	if b.buffered+len(p) > b.limit {
+	if b.buffered+len(p) > defaultWindowSize {
 		return false
 	}
 	if len(p) > maxMergePieceSize || len(b.bufs) <= 1 || b.bufs[len(b.bufs)-1].Len() >= minSizePerPiece {

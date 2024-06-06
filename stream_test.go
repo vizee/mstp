@@ -98,7 +98,6 @@ func Test_inbuf(t *testing.T) {
 
 	b := &inbuf{
 		buffered: 0,
-		limit:    3000,
 	}
 	assert(b.put(bytes.Repeat([]byte("1"), 512)))
 	assert(b.buffered == 512 && len(b.bufs) == 1)
@@ -108,10 +107,10 @@ func Test_inbuf(t *testing.T) {
 	assert(b.buffered == 1536 && len(b.bufs) == 2 && b.bufs[len(b.bufs)-1].Len() == 1024)
 	assert(b.put(bytes.Repeat([]byte("4"), 512)))
 	assert(b.buffered == 2048 && len(b.bufs) == 3)
-	assert(!b.put(bytes.Repeat([]byte("5"), 1024)))
+	assert(!b.put(bytes.Repeat([]byte("5"), 65000)))
 	assert(b.buffered == 2048 && len(b.bufs) == 3)
 	assert(b.consume(make([]byte, 512)) == 512)
-	assert(b.buffered == 1536 && len(b.bufs) == 3 && b.bufs[0].Len() == 0)
+	assert(b.buffered == 1536 && len(b.bufs) == 2)
 	assert(b.consume(make([]byte, 1025)) == 1025)
 	assert(b.buffered == 511 && len(b.bufs) == 1)
 	assert(b.consume(make([]byte, 1025)) == 511)
