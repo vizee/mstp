@@ -118,7 +118,12 @@ func (s *Stream) updateWindow() {
 		if s.closed.Load() {
 			break
 		}
+
 		unacked := s.in.getUnacked()
+		if unacked == 0 {
+			continue
+		}
+
 		_ = s.c.writeFrame(&Frame{
 			Type:  FrameUpdateWindow,
 			Sid:   s.sid,
@@ -240,7 +245,7 @@ func (f *outflow) request(n int) (int, bool) {
 func (f *outflow) increase(n int) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
-	if f.state == stateFlowClosed {
+	if f.state == stateFlowClosed || n == 0 {
 		return
 	}
 
@@ -315,6 +320,9 @@ func (f *inflow) arrive(n int) bool {
 	if f.state == stateFlowClosed {
 		return false
 	}
+	if n == 0 {
+		return true
+	}
 
 	wakeup := f.ready == 0
 	f.ready += n
@@ -345,6 +353,10 @@ type inbuf struct {
 }
 
 func (b *inbuf) put(p []byte) bool {
+	if len(p) == 0 {
+		return true
+	}
+
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
