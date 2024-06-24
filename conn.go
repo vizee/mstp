@@ -26,7 +26,7 @@ type NewStreamFunc func(*Stream)
 type Conn struct {
 	closed atomic.Bool
 	done   chan struct{}
-	conn   io.ReadWriteCloser
+	wc     io.WriteCloser
 	err    error
 
 	wlock sync.Mutex
@@ -49,10 +49,6 @@ func (c *Conn) LastErr() error {
 	return c.err
 }
 
-func (c *Conn) RawConn() io.ReadWriteCloser {
-	return c.conn
-}
-
 func (c *Conn) closeConn(err error, flush bool) error {
 	// 标记退出状态
 	// 关闭所有 stream
@@ -68,7 +64,7 @@ func (c *Conn) closeConn(err error, flush bool) error {
 		c.wlock.Unlock()
 	}
 
-	c.conn.Close()
+	c.wc.Close()
 
 	c.streamLock.Lock()
 	streams := c.streams
@@ -168,8 +164,8 @@ func (c *Conn) handleFrame(frame *Frame) error {
 	return stream.handleFrame(frame)
 }
 
-func (c *Conn) readFrames() {
-	br := bufio.NewReaderSize(c.conn, readBufSize)
+func (c *Conn) readFrames(rd io.Reader) {
+	br := bufio.NewReaderSize(rd, readBufSize)
 	for {
 		frame, err := ReadFrame(br)
 		if err != nil {
@@ -238,7 +234,7 @@ func (c *Conn) NewStream() (*Stream, error) {
 	return nil, ErrSidConflict
 }
 
-func NewConn(conn io.ReadWriteCloser, server bool, newStream NewStreamFunc) *Conn {
+func NewConn(wc io.WriteCloser, rd io.Reader, server bool, newStream NewStreamFunc) *Conn {
 	var sidSeed uint32
 	if server {
 		sidSeed = 2
@@ -247,9 +243,9 @@ func NewConn(conn io.ReadWriteCloser, server bool, newStream NewStreamFunc) *Con
 	}
 	c := &Conn{
 		done:      make(chan struct{}),
-		conn:      conn,
+		wc:        wc,
 		err:       nil,
-		bw:        bufio.NewWriterSize(conn, writeBufSize),
+		bw:        bufio.NewWriterSize(wc, writeBufSize),
 		flush:     make(chan struct{}, 1),
 		server:    server,
 		sidSeed:   sidSeed,
@@ -257,7 +253,7 @@ func NewConn(conn io.ReadWriteCloser, server bool, newStream NewStreamFunc) *Con
 		streams:   make(map[uint32]*Stream),
 	}
 
-	go c.readFrames()
+	go c.readFrames(rd)
 	go c.flushWrite()
 
 	return c

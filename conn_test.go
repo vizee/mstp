@@ -26,7 +26,7 @@ func TestConn(t *testing.T) {
 	assert(err == nil)
 	defer sc.Close()
 
-	smc := NewConn(sc, true, func(ss *Stream) {
+	smc := NewConn(sc, sc, true, func(ss *Stream) {
 		go func() {
 			defer ss.Close()
 			slog.Debug("new ss", "sid", ss.sid)
@@ -34,7 +34,7 @@ func TestConn(t *testing.T) {
 			slog.Debug("io.Copy", "sid", ss.sid, "n", n, "err", err)
 		}()
 	})
-	cmc := NewConn(cc, false, func(cs *Stream) {
+	cmc := NewConn(cc, cc, false, func(cs *Stream) {
 		go func() {
 			defer cs.Close()
 			slog.Info("new cs", "sid", cs.sid)
