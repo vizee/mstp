@@ -23,7 +23,7 @@ var (
 type Frame struct {
 	Type    byte
 	Sid     uint32
-	Param   uint32
+	Param   uint32 // Data: payloadLength, UpdateWindow: windowSize, End: isReset
 	Payload []byte
 }
 

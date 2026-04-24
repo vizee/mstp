@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	readBufSize     = 16 * 1024
-	writeBufSize    = 16 * 1024
-	windowSizeLimit = 1<<32 - 1
+	readBufSize  = 16 * 1024
+	writeBufSize = 16 * 1024
 )
 
 var (
