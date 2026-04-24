@@ -48,6 +48,18 @@ func TestFrameCodec(t *testing.T) {
 		Param:   10,
 		Payload: []byte("helloworld"),
 	}))
+	assert(testFrame(&Frame{
+		Type:    FrameData,
+		Sid:     1,
+		Param:   maxFramePayload - 1,
+		Payload: bytes.Repeat([]byte("1"), maxFramePayload-1),
+	}))
+	assert(testFrame(&Frame{
+		Type:    FrameData,
+		Sid:     1,
+		Param:   maxFramePayload,
+		Payload: bytes.Repeat([]byte("1"), maxFramePayload),
+	}))
 	assert(!testFrame(&Frame{
 		Type:    FrameData,
 		Sid:     1,

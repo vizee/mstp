@@ -35,7 +35,7 @@ func ReadFrame(r io.Reader) (*Frame, error) {
 	}
 	frameType := header[0]
 	length := binary.LittleEndian.Uint32(header[0:4]) >> 8
-	if length >= maxFramePayload {
+	if length > maxFramePayload {
 		return nil, ErrPayloadTooLarge
 	}
 
