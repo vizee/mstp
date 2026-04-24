@@ -66,7 +66,7 @@ func WriteFrame(w io.Writer, f *Frame) error {
 	if err != nil {
 		return err
 	}
-	if len(f.Payload) > 0 {
+	if f.Type == FrameData && f.Param > 0 {
 		_, err := w.Write(f.Payload)
 		if err != nil {
 			return err
