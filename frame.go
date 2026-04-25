@@ -34,14 +34,13 @@ func ReadFrame(r io.Reader) (*Frame, error) {
 		return nil, err
 	}
 	frameType := header[0]
-	length := binary.LittleEndian.Uint32(header[0:4]) >> 8
-	if length > maxFramePayload {
-		return nil, ErrPayloadTooLarge
-	}
-
+	param := binary.LittleEndian.Uint32(header[0:4]) >> 8
 	var payload []byte
-	if frameType == FrameData && length > 0 {
-		payload = make([]byte, length)
+	if frameType == FrameData && param > 0 {
+		if param > maxFramePayload {
+			return nil, ErrPayloadTooLarge
+		}
+		payload = make([]byte, param)
 		_, err = io.ReadFull(r, payload)
 		if err != nil {
 			return nil, err
@@ -50,7 +49,7 @@ func ReadFrame(r io.Reader) (*Frame, error) {
 	return &Frame{
 		Type:    frameType,
 		Sid:     binary.LittleEndian.Uint32(header[4:8]),
-		Param:   length,
+		Param:   param,
 		Payload: payload,
 	}, nil
 }
