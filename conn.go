@@ -32,6 +32,10 @@ type Conn struct {
 	bw    *bufio.Writer
 	flush chan struct{}
 
+	wndlock sync.Mutex
+	wndupd  map[*Stream]struct{}
+	ackwnd  chan struct{}
+
 	streamLock sync.Mutex
 	server     bool
 	sidSeed    uint32
@@ -56,6 +60,11 @@ func (c *Conn) closeConn(err error, flush bool) error {
 	}
 	c.err = err
 	close(c.done)
+
+	close(c.ackwnd)
+	c.wndlock.Lock()
+	c.wndupd = nil
+	c.wndlock.Unlock()
 
 	if flush {
 		c.wlock.Lock()
@@ -206,6 +215,44 @@ func (c *Conn) flushWrite() {
 	}
 }
 
+func (c *Conn) updateWindow() {
+	for range c.ackwnd {
+		if c.closed.Load() {
+			break
+		}
+
+		c.wndlock.Lock()
+		streams := make([]*Stream, 0, len(c.wndupd))
+		for s := range c.wndupd {
+			streams = append(streams, s)
+		}
+		clear(c.wndupd)
+		c.wndlock.Unlock()
+
+		for _, s := range streams {
+			unacked := s.in.getUnacked()
+			if unacked == 0 {
+				continue
+			}
+			_ = s.c.writeFrame(&Frame{
+				Type:  FrameUpdateWindow,
+				Sid:   s.sid,
+				Param: uint32(unacked),
+			})
+		}
+	}
+}
+
+func (c *Conn) notifyUpdateWindow(stream *Stream) {
+	c.wndlock.Lock()
+	defer c.wndlock.Unlock()
+	if c.closed.Load() {
+		return
+	}
+	c.wndupd[stream] = struct{}{}
+	pluse(c.ackwnd)
+}
+
 func (c *Conn) NewStream() (*Stream, error) {
 	const allocSidRetry = 8
 
@@ -246,6 +293,8 @@ func NewConn(wc io.WriteCloser, rd io.Reader, server bool, newStream NewStreamFu
 		err:       nil,
 		bw:        bufio.NewWriterSize(wc, writeBufSize),
 		flush:     make(chan struct{}, 1),
+		ackwnd:    make(chan struct{}, 1),
+		wndupd:    make(map[*Stream]struct{}),
 		server:    server,
 		sidSeed:   sidSeed,
 		newStream: newStream,
@@ -254,6 +303,7 @@ func NewConn(wc io.WriteCloser, rd io.Reader, server bool, newStream NewStreamFu
 
 	go c.readFrames(rd)
 	go c.flushWrite()
+	go c.updateWindow()
 
 	return c
 }

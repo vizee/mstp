@@ -21,7 +21,6 @@ type Stream struct {
 	closed atomic.Bool
 	sid    uint32
 	c      *Conn
-	ackwnd chan struct{}
 	out    *outflow
 	in     *inflow
 	inbuf  *inbuf
@@ -31,9 +30,6 @@ func (s *Stream) closeStream(connClosed bool) error {
 	if !s.closed.CompareAndSwap(false, true) {
 		return ErrStreamClosed
 	}
-
-	// 通知 updateWindow 退出
-	pluse(s.ackwnd)
 
 	// 写端关闭
 	sendEnd := s.out.close()
@@ -113,25 +109,6 @@ func (s *Stream) Write(p []byte) (wrote int, err error) {
 	return
 }
 
-func (s *Stream) updateWindow() {
-	for range s.ackwnd {
-		if s.closed.Load() {
-			break
-		}
-
-		unacked := s.in.getUnacked()
-		if unacked == 0 {
-			continue
-		}
-
-		_ = s.c.writeFrame(&Frame{
-			Type:  FrameUpdateWindow,
-			Sid:   s.sid,
-			Param: uint32(unacked),
-		})
-	}
-}
-
 func (s *Stream) Read(p []byte) (int, error) {
 	if s.closed.Load() {
 		return 0, io.ErrClosedPipe
@@ -143,16 +120,15 @@ func (s *Stream) Read(p []byte) (int, error) {
 	}
 	s.inbuf.consume(p[:n])
 
-	pluse(s.ackwnd)
+	s.c.notifyUpdateWindow(s)
 
 	return n, nil
 }
 
 func newStream(c *Conn, sid uint32) *Stream {
-	s := &Stream{
-		sid:    sid,
-		c:      c,
-		ackwnd: make(chan struct{}, 1),
+	return &Stream{
+		sid: sid,
+		c:   c,
 		out: &outflow{
 			state: stateFlowIdle,
 			ready: defaultWindowSize,
@@ -170,9 +146,6 @@ func newStream(c *Conn, sid uint32) *Stream {
 			buffered: 0,
 		},
 	}
-	go s.updateWindow()
-
-	return s
 }
 
 const (
